@@ -16,6 +16,10 @@ Thoracic Disease Classifier with ResNet-50 (via Transfer Learning)
 2. Download & Install Visual Studio 2019 w/ C++ Desktop Development
 3. Download & Install CUDA 11.2
 4. Download & Install cuDNN 8.1
+5. While in the 3.10 venv, install the requirements:
+```
+pip install -r requirements.txt
+```
 
 
 **If ure using linux or mac**
