@@ -4,7 +4,8 @@ Thoracic Disease Classifier with ResNet-50 (via Transfer Learning)
 > [!NOTE]
 > - Model training/fine-tuning is not optimized YET; which makes this model very horribly, horrendously inaccurate — so use at your own risk.
 > - Due to Github's file size limitations, I cannot upload the trained models to this repo.
-
+> - However, you can find my trained models here: https://drive.google.com/drive/folders/115k4AeRXWwNYj_4nonQ-HzQg8nZJmboa?usp=sharing
+> - Again, Model training/fine-tuning is **not optimized YET; which makes this model very horribly, horrendously inaccurate** — so use at your own risk.
 ## How to use the Notebook for Training
 **Prepare the dataset**
 1. Download the dataset from: https://www.kaggle.com/datasets/nih-chest-xrays/data/
@@ -20,7 +21,6 @@ Thoracic Disease Classifier with ResNet-50 (via Transfer Learning)
 ```
 pip install -r requirements.txt
 ```
-
 
 **If ure using linux or mac**
 1. Idk, check what you need by yourself here: https://www.tensorflow.org/install/source#tested_build_configurations
