@@ -6,11 +6,14 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap, QImage, QFont
 from tensorflow.keras.models import load_model
 
-model = load_model('thoracic_classifier.h5')
+model = load_model('thoracic_classifierV2.h5')
 
-class_names = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion', 
-               'Emphysema', 'Fibrosis', 'Hernia', 'Infiltration', 'Mass', 'No Finding', 
-               'Nodule', 'Pleural_Thickening', 'Pneumonia', 'Pneumothorax']
+# class_names = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion', 
+#                'Emphysema', 'Fibrosis', 'Hernia', 'Infiltration', 'Mass', 'No Finding', 
+#                'Nodule', 'Pleural_Thickening', 'Pneumonia', 'Pneumothorax']
+
+class_names = ["Pneumonia", "Cardiomegaly", "Edema", 
+                "Emphysema", "Effusion", "Infiltration", "Atelectasis"]
 
 
 def preprocess_image(image_path):
