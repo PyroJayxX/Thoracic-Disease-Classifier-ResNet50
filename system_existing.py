@@ -1,41 +1,41 @@
 import sys
 import numpy as np
 import cv2
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QPushButton, QFileDialog, QBoxLayout, QHBoxLayout
+from PyQt5.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget, QPushButton, QFileDialog, QHBoxLayout
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap, QImage, QFont
-from tensorflow.keras.models import load_model
+from keras.models import load_model
+from keras.losses import Loss  
 
-model = load_model('thoracic_classifier.h5')
+custom_objects = {'loss': Loss}  # Replace 'loss' with your custom loss function name
+model = load_model('thoracic_classifierV3.h5', custom_objects=custom_objects)
 
-class_names = ['Atelectasis', 'Cardiomegaly', 'Consolidation', 'Edema', 'Effusion', 
-               'Emphysema', 'Fibrosis', 'Hernia', 'Infiltration', 'Mass', 'No Finding', 
-               'Nodule', 'Pleural_Thickening', 'Pneumonia', 'Pneumothorax']
+class_names = ["Pneumonia", "Cardiomegaly", "Edema", 
+                "Emphysema", "Effusion", "Infiltration", "Atelectasis"]
 
 
 def preprocess_image(image_path):
-    # Load the image
+    # Load grayscale image
     orig_img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     
-    # Apply CLAHE for improved contrast
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    clahe_img = clahe.apply(orig_img)
+    # Resize to model input size
+    model_img = cv2.resize(orig_img, (224, 224))
     
-    # Create a displayable version of the CLAHE image
-    display_img = cv2.resize(clahe_img, (400, 400), interpolation=cv2.INTER_AREA)
+    # Normalize pixel range to [0, 1]
+    model_img = model_img.astype(np.float32) / 255.0
     
-    # Resize the image to the input size of the model
-    model_img = cv2.resize(clahe_img, (224, 224))
+    # Samplewise centering (subtract mean of this image)
+    model_img -= np.mean(model_img)
     
-    # Convert the image to a float32 numpy array and normalize it
-    model_img = np.array(model_img, dtype=np.float32) / 255.0
+    # Samplewise std normalization (divide by std of this image)
+    model_img /= (np.std(model_img) + 1e-7)
     
-    # Expand dimensions to match the input shape of the model (1, 224, 224, 3)
-    model_img = np.expand_dims(model_img, axis=0)  # Add batch dimension: (1, 224, 224)
-    model_img = np.expand_dims(model_img, axis=3)  # Add channel dimension: (1, 224, 224, 1)
-    model_img = np.repeat(model_img, 3, axis=3)    # Repeat to 3 channels: (1, 224, 224, 3)
+    # Add batch and channel dimensions
+    model_img = np.expand_dims(model_img, axis=(0, -1))  # (1, 224, 224, 1)
+    model_img = np.repeat(model_img, 3, axis=-1)         # (1, 224, 224, 3)
     
-    return model_img, display_img
+    return model_img
+
 
 
 class XrayClassifierApp(QWidget):
@@ -63,22 +63,8 @@ class XrayClassifierApp(QWidget):
         self.original_image_label.setMinimumSize(400, 400)
         original_layout.addWidget(self.original_image_label)
         
-        # Create vertical layout for processed image and its label
-        processed_layout = QVBoxLayout()
-        processed_label = QLabel("CLAHE Enhancement")
-        processed_label.setAlignment(Qt.AlignCenter)
-        processed_label.setFont(QFont('Arial', 12, QFont.Bold))
-        processed_layout.addWidget(processed_label)
-        
-        # Create label to display processed image
-        self.processed_image_label = QLabel("No processed image")
-        self.processed_image_label.setAlignment(Qt.AlignCenter)
-        self.processed_image_label.setMinimumSize(400, 400)
-        processed_layout.addWidget(self.processed_image_label)
-        
-        # Add both layouts to the images layout
+        # Add the original image layout to the images layout
         images_layout.addLayout(original_layout)
-        images_layout.addLayout(processed_layout)
         
         main_layout.addLayout(images_layout)
         
@@ -116,33 +102,27 @@ class XrayClassifierApp(QWidget):
             self.original_image_label.setPixmap(pixmap.scaled(400, 400, Qt.KeepAspectRatio))
             self.image_path = file_name
             
-            # Process and display CLAHE image
-            _, clahe_img = preprocess_image(file_name)
-            
-            # Convert OpenCV image to Qt format
-            h, w = clahe_img.shape
-            q_img = QImage(clahe_img.data, w, h, w, QImage.Format_Grayscale8)
-            clahe_pixmap = QPixmap.fromImage(q_img)
-            
-            # Display processed image
-            self.processed_image_label.setPixmap(clahe_pixmap.scaled(400, 400, Qt.KeepAspectRatio))
-            
             # Clear previous results
             self.results_label.setText("")
 
     def classify_image(self):
         if hasattr(self, 'image_path'):
-            model_img, _ = preprocess_image(self.image_path)
+            model_img = preprocess_image(self.image_path)
             predictions = model.predict(model_img)[0]
             
-            # Get the top 5 predictions
-            top_indices = predictions.argsort()[-5:][::-1]
-            top_classes = [(class_names[i], predictions[i] * 100) for i in top_indices]
+            # Get the top prediction
+            top_index = np.argmax(predictions)
+            top_class = class_names[top_index]
+            confidence = predictions[top_index] * 100
             
-            # Format the result text
-            result_text = "Predictions:\n"
-            for cls, score in top_classes:
-                result_text += f"{cls}: {score:.2f}%\n"
+            # Display the top prediction
+            result_text = f"Prediction:\n{top_class}\nConfidence: {confidence:.2f}%\n\n"
+            
+            # Display detailed probabilities for all classes
+            result_text += "Detailed Probabilities:\n"
+            for i, cls in enumerate(class_names):
+                prob = predictions[i] * 100
+                result_text += f"{cls}: {prob:.2f}%\n"
             
             self.results_label.setText(result_text)
             self.results_label.adjustSize()
