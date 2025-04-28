@@ -4,3 +4,5 @@ dataset/
 dataset_balanced/
 *.h5
 *.keras
+build/
+dist/

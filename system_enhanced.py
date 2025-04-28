@@ -5,15 +5,16 @@ from PyQt5.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget, QPushBut
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap, QImage, QFont
 from keras.models import load_model
-from keras.losses import Loss  
+from keras.losses import Loss
+from tensorflow_addons.losses import SigmoidFocalCrossEntropy
 from PyQt5.QtWidgets import QFrame
 
-custom_objects = {'loss': Loss}  
-model = load_model('thoracic_classifierV8.keras', custom_objects=custom_objects)
+custom_objects = {'loss': Loss, 'Addons>SigmoidFocalCrossEntropy': SigmoidFocalCrossEntropy()}
+model = load_model('./output/thoracic_classifierV9.keras', custom_objects=custom_objects)
 
 class_names = ["Atelectasis", "Cardiomegaly", "Consolidation", "Edema", "Effusion",
     "Emphysema", "Fibrosis", "Hernia", "Infiltration", "Mass",
-    "No Finding", "Nodule", "Pleural_Thickening", "Pneumonia", "Pneumothorax"]
+    "Nodule", "Pleural_Thickening", "Pneumonia", "Pneumothorax"]
 
 
 def preprocess_image(image_path):

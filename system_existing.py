@@ -7,13 +7,23 @@ from PyQt5.QtGui import QPixmap, QImage, QFont
 from keras.models import load_model
 from keras.losses import Loss  
 from PyQt5.QtWidgets import QFrame
+import os
 
 custom_objects = {'loss': Loss}  
-model = load_model('thoracic_classifierV8.keras', custom_objects=custom_objects)
+
+# def resource_path(relative_path):
+#     if hasattr(sys, '_MEIPASS'):
+#         return os.path.join(sys._MEIPASS, relative_path)
+#     return os.path.join(os.path.abspath("."), relative_path)
+
+# model_path = resource_path("thoracic_classifierV8.keras")
+# model = load_model(model_path, custom_objects={'loss': Loss})
+
+model = load_model("./output/thoracic_classifierV8.keras", custom_objects=custom_objects)
 
 class_names = ["Atelectasis", "Cardiomegaly", "Consolidation", "Edema", "Effusion",
-    "Emphysema", "Fibrosis", "Hernia", "Infiltration", "Mass",
-    "No Finding", "Nodule", "Pleural_Thickening", "Pneumonia", "Pneumothorax"]
+    "Emphysema", "Fibrosis", "Hernia", "Infiltration", "Mass", "No Finding", 
+    "Nodule", "Pleural_Thickening", "Pneumonia", "Pneumothorax"]
 
 
 def preprocess_image(image_path):
@@ -36,7 +46,7 @@ class XrayClassifierApp(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Thoracic Disease Classifier")
-        self.setGeometry(200, 200, 900, 550)  # Larger window for better visualization
+        self.setGeometry(200, 200, 900, 500)  # Larger window for better visualization
 
         # Create main layout
         main_layout = QHBoxLayout()  # Horizontal layout for image and prediction
@@ -110,26 +120,26 @@ class XrayClassifierApp(QWidget):
             model_img = preprocess_image(self.image_path)
             predictions = model.predict(model_img)[0]
             
-            # Get the top 3 predictions
-            top_indices = np.argsort(predictions)[-3:][::-1]
-            top_classes = [(class_names[i], predictions[i] * 100) for i in top_indices]
+            # Get the top prediction
+            top_index = np.argmax(predictions)
+            top_class = class_names[top_index]
+            top_confidence = predictions[top_index] * 100
             
-            # Display the top 3 predictions with stylized text
-            result_text = f"<h4 style='color: #00ff00; margin=0;'>Top 3 Predictions:</h4>"
-            for cls, confidence in top_classes:
-                result_text += f"<h2 style='color: #ffcc00; margin=0;'>{cls}</h2>"
-                result_text += f"<h5 style='color: #00ff00; margin=0;'>Confidence: {confidence:.2f}%</h5>"
+            # Display the top prediction with stylized text
+            result_text = f"<h2 style='color: #00ff00; margin=0;'>Top Prediction:</h2>"
+            result_text += f"<h1 style='color: #ffcc00; margin=0;'>{top_class}</h1>"
+            result_text += f"<h3 style='color: #00ff00; margin=0;'>Confidence: {top_confidence:.2f}%</h3>"
 
             # Display detailed probabilities for all classes
-            result_text += "<h4 style='color: #00ff00;'>Detailed Probabilities:</h4>"
+            result_text += "<h2 style='color: #00ff00;'>Detailed Probabilities:</h2>"
             for i, cls in enumerate(class_names):
                 prob = predictions[i] * 100
-                result_text += f"<p style='margin: 0; color: #ffffff; size: 7;'>{cls}: {prob:.2f}%</p>"
+                result_text += f"<p style='margin: 0; color: #ffffff;'>{cls}: {prob:.2f}%</p>"
             
             self.results_label.setText(result_text)
             self.results_label.adjustSize()
         else:
-            self.results_label.setText("<h3 style='color: #ff0000;'>No image selected</h3>")
+            self.results_label.setText("<h2 style='color: #ff0000;'>No image selected</h2>")
             self.results_label.adjustSize()
 
 
