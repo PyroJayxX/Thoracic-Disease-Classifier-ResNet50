@@ -8,6 +8,8 @@ from keras.models import load_model
 from keras.losses import Loss  
 from PyQt5.QtWidgets import QFrame
 import os
+import tensorflow as tf
+
 
 custom_objects = {'loss': Loss}  
 
@@ -42,11 +44,37 @@ def preprocess_image(image_path):
     
     return model_img
 
+import tensorflow as tf
+
+def generate_gradcam(model, img_array, last_conv_layer_name="conv5_block3_out", pred_index=None):
+    grad_model = tf.keras.models.Model(
+        [model.inputs],
+        [model.get_layer(last_conv_layer_name).output, model.output]
+    )
+
+    with tf.GradientTape() as tape:
+        conv_outputs, predictions = grad_model(img_array)
+        if pred_index is None:
+            pred_index = tf.argmax(predictions[0])
+        class_output = predictions[:, pred_index]
+
+    # Compute gradients of top predicted class w.r.t. output feature map
+    grads = tape.gradient(class_output, conv_outputs)
+    pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+
+    conv_outputs = conv_outputs[0]
+    heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
+    heatmap = tf.squeeze(heatmap)
+
+    # Normalize between 0 and 1
+    heatmap = tf.maximum(heatmap, 0) / tf.math.reduce_max(heatmap)
+    return heatmap.numpy()
+
 class XrayClassifierApp(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Thoracic Disease Classifier")
-        self.setGeometry(200, 200, 900, 500)  # Larger window for better visualization
+        self.setGeometry(200, 200, 900, 600)  # Adjusted height for heatmap display
 
         # Create main layout
         main_layout = QHBoxLayout()  # Horizontal layout for image and prediction
@@ -60,7 +88,14 @@ class XrayClassifierApp(QWidget):
         self.original_image_label.setMinimumSize(400, 400)
         self.original_image_label.setStyleSheet("border: 2px solid #444444; border-radius: 10px; background-color: #333333; color: white;")
         image_layout.addWidget(self.original_image_label)
-        
+
+        # Create label to display heatmap
+        self.heatmap_label = QLabel("Heatmap will be displayed here")
+        self.heatmap_label.setAlignment(Qt.AlignCenter)
+        self.heatmap_label.setMinimumSize(400, 400)
+        self.heatmap_label.setStyleSheet("border: 2px solid #444444; border-radius: 10px; background-color: #333333; color: white;")
+        image_layout.addWidget(self.heatmap_label)
+
         button_layout_load = QHBoxLayout()
 
         # Create button to load image
@@ -114,7 +149,7 @@ class XrayClassifierApp(QWidget):
             
             # Clear previous results
             self.results_label.setText("")
-
+            
     def classify_image(self):
         if hasattr(self, 'image_path'):
             model_img = preprocess_image(self.image_path)
@@ -126,18 +161,35 @@ class XrayClassifierApp(QWidget):
             top_confidence = predictions[top_index] * 100
             
             # Display the top prediction with stylized text
-            result_text = f"<h2 style='color: #00ff00; margin=0;'>Top Prediction:</h2>"
-            result_text += f"<h1 style='color: #ffcc00; margin=0;'>{top_class}</h1>"
-            result_text += f"<h3 style='color: #00ff00; margin=0;'>Confidence: {top_confidence:.2f}%</h3>"
+            result_text = f"<h1 style='color: #00ff00; margin=0; font-size: 48px;'>Top Prediction:</h1>"
+            result_text += f"<h1 style='color: #ffcc00; margin=0; font-size: 84px;'>{top_class}</h1>"
+            result_text += f"<h2 style='color: #00ff00; margin=0; font-size: 36px;'>Confidence: {top_confidence:.2f}%</h2>"
 
             # Display detailed probabilities for all classes
-            result_text += "<h2 style='color: #00ff00;'>Detailed Probabilities:</h2>"
+            result_text += "<h2 style='color: #00ff00; font-size: 22px;'>Detailed Probabilities:</h2>"
             for i, cls in enumerate(class_names):
                 prob = predictions[i] * 100
-                result_text += f"<p style='margin: 0; color: #ffffff;'>{cls}: {prob:.2f}%</p>"
-            
+                result_text += f"<p style='margin: 0; color: #ffffff; font-size: 14px;'>{cls}: {prob:.2f}%</p>"
+
             self.results_label.setText(result_text)
             self.results_label.adjustSize()
+
+            # Generate Grad-CAM heatmap
+            heatmap = generate_gradcam(model, model_img)
+            heatmap = cv2.resize(heatmap, (400, 400))  # Resize to match QLabel size
+            heatmap = np.uint8(255 * heatmap)  # Scale to 0-255
+            heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)  # Apply color map
+
+            # Overlay heatmap on the original image
+            orig_img = cv2.imread(self.image_path)
+            orig_img = cv2.resize(orig_img, (400, 400))
+            overlay = cv2.addWeighted(orig_img, 0.6, heatmap, 0.4, 0)
+
+            # Convert to QPixmap and display in heatmap_label
+            overlay = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
+            qimage = QImage(overlay.data, overlay.shape[1], overlay.shape[0], QImage.Format_RGB888)
+            pixmap = QPixmap.fromImage(qimage)
+            self.heatmap_label.setPixmap(pixmap)
         else:
             self.results_label.setText("<h2 style='color: #ff0000;'>No image selected</h2>")
             self.results_label.adjustSize()

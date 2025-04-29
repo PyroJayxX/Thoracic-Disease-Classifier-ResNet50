@@ -1,4 +1,5 @@
 absl-py==2.2.1
+altgraph==0.17.4
 asttokens==3.0.0
 astunparse==1.6.3
 cachetools==5.5.2
@@ -49,6 +50,7 @@ opt_einsum==3.4.0
 packaging==24.2
 pandas==2.2.3
 parso==0.8.4
+pefile==2023.2.7
 pillow==11.1.0
 platformdirs==4.3.7
 prompt_toolkit==3.0.50
@@ -58,6 +60,8 @@ pure_eval==0.2.3
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
 Pygments==2.19.1
+pyinstaller==6.13.0
+pyinstaller-hooks-contrib==2025.3
 pyparsing==3.2.3
 PyQt5==5.15.11
 PyQt5-Qt5==5.15.2
@@ -66,6 +70,7 @@ python-dateutil==2.9.0.post0
 pytorch-pretrained-vit==0.0.7
 pytz==2025.2
 pywin32==310
+pywin32-ctypes==0.2.3
 PyYAML==6.0.2
 pyzmq==26.3.0
 regex==2024.11.6
@@ -75,12 +80,14 @@ rsa==4.9
 safetensors==0.5.3
 scikit-learn==1.6.1
 scipy==1.15.2
+seaborn==0.13.2
 six==1.17.0
 stack-data==0.6.3
 sympy==1.13.3
 tensorboard==2.10.1
 tensorboard-data-server==0.6.1
 tensorboard-plugin-wit==1.8.1
+tensorflow-addons==0.22.0
 tensorflow-estimator==2.10.0
 tensorflow-gpu==2.10.0
 tensorflow-io-gcs-filesystem==0.31.0
@@ -93,6 +100,7 @@ tornado==6.4.2
 tqdm==4.67.1
 traitlets==5.14.3
 transformers==4.40.1
+typeguard==2.13.3
 typing_extensions==4.13.0
 tzdata==2025.2
 urllib3==2.3.0
