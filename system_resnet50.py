@@ -61,7 +61,7 @@ def generate_gradcam(model, img_array, last_conv_layer_name="conv5_block3_out", 
 class XrayClassifierApp(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Thoracic Disease Classifier")
+        self.setWindowTitle("ResNet50 Thoracic Disease Classifier")
         self.setGeometry(200, 200, 900, 600)  # Adjusted height for heatmap display
 
         # Create main layout
