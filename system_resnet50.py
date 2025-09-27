@@ -5,22 +5,42 @@ from PyQt5.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget, QPushBut
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap, QImage, QFont
 from keras.models import load_model
-from keras.losses import Loss
-from tensorflow_addons.losses import SigmoidFocalCrossEntropy
-from PyQt5.QtWidgets import QFrame
 import tensorflow as tf
+import json
 
-custom_objects = {'loss': Loss, 'Addons>SigmoidFocalCrossEntropy': SigmoidFocalCrossEntropy()}
-model = load_model('./output/thoracic_classifierV9.keras', custom_objects=custom_objects)
+# Load the model (no custom objects needed for binary crossentropy)
+model = load_model('./output/baseline_resnet50_best.keras')
 
 class_names = ["Atelectasis", "Cardiomegaly", "Consolidation", "Edema", "Effusion",
     "Emphysema", "Fibrosis", "Hernia", "Infiltration", "Mass",
     "Nodule", "Pleural_Thickening", "Pneumonia", "Pneumothorax"]
 
+# Your optimized thresholds
+optimal_thresholds = {
+    "Atelectasis": 0.1,
+    "Cardiomegaly": 0.25,
+    "Consolidation": 0.1,
+    "Edema": 0.30,
+    "Effusion": 0.1,
+    "Emphysema": 0.15,
+    "Fibrosis": 0.25,
+    "Hernia": 0.35,
+    "Infiltration": 0.15,
+    "Mass": 0.15,
+    "Nodule": 0.15,
+    "Pleural_Thickening": 0.15,
+    "Pneumonia": 0.25,
+    "Pneumothorax": 0.15
+}
 
 def preprocess_image(image_path):
-    # Load grayscale image
-    orig_img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+    # Load image in color (medical images are often grayscale but model expects RGB)
+    orig_img = cv2.imread(image_path)
+    if orig_img is None:
+        raise ValueError(f"Could not load image from {image_path}")
+    
+    # Convert BGR to RGB
+    orig_img = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB)
     
     # Resize to model input size
     model_img = cv2.resize(orig_img, (224, 224))
@@ -28,13 +48,13 @@ def preprocess_image(image_path):
     # Normalize pixel range to [0, 1]
     model_img = model_img.astype(np.float32) / 255.0
     
-    # Add batch and channel dimensions
-    model_img = np.expand_dims(model_img, axis=(0, -1))  # (1, 224, 224, 1)
-    model_img = np.repeat(model_img, 3, axis=-1)         # (1, 224, 224, 3)
+    # Add batch dimension
+    model_img = np.expand_dims(model_img, axis=0)  # (1, 224, 224, 3)
     
     return model_img
 
-def generate_gradcam(model, img_array, last_conv_layer_name="conv5_block3_out", pred_index=None):
+def generate_gradcam_multilabel(model, img_array, class_index, last_conv_layer_name="conv5_block3_out"):
+    """Generate Grad-CAM for a specific class in multi-label setting - using working approach"""
     grad_model = tf.keras.models.Model(
         [model.inputs],
         [model.get_layer(last_conv_layer_name).output, model.output]
@@ -42,9 +62,8 @@ def generate_gradcam(model, img_array, last_conv_layer_name="conv5_block3_out", 
 
     with tf.GradientTape() as tape:
         conv_outputs, predictions = grad_model(img_array)
-        if pred_index is None:
-            pred_index = tf.argmax(predictions[0])
-        class_output = predictions[:, pred_index]
+        # Use specific class index instead of argmax
+        class_output = predictions[:, class_index]
 
     # Compute gradients of top predicted class w.r.t. output feature map
     grads = tape.gradient(class_output, conv_outputs)
@@ -54,18 +73,41 @@ def generate_gradcam(model, img_array, last_conv_layer_name="conv5_block3_out", 
     heatmap = conv_outputs @ pooled_grads[..., tf.newaxis]
     heatmap = tf.squeeze(heatmap)
 
-    # Normalize between 0 and 1
+    # Normalize between 0 and 1 - same as working code
     heatmap = tf.maximum(heatmap, 0) / tf.math.reduce_max(heatmap)
     return heatmap.numpy()
+
+def predict_with_thresholds(predictions, thresholds, class_names):
+    """Apply optimized thresholds to get binary predictions"""
+    detected_diseases = []
+    all_results = []
+    
+    for i, class_name in enumerate(class_names):
+        probability = float(predictions[i])
+        threshold = thresholds[class_name]
+        is_detected = probability >= threshold
+        
+        result = {
+            'class': class_name,
+            'probability': probability,
+            'threshold': threshold,
+            'detected': is_detected
+        }
+        all_results.append(result)
+        
+        if is_detected:
+            detected_diseases.append(result)
+    
+    return detected_diseases, all_results
 
 class XrayClassifierApp(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("ResNet50 Thoracic Disease Classifier")
-        self.setGeometry(200, 200, 900, 600)  # Adjusted height for heatmap display
+        self.setWindowTitle("ResNet-50 Multi-label Thoracic Disease Classifier")
+        self.setGeometry(200, 200, 1200, 700)  # Wider for multi-label display
 
         # Create main layout
-        main_layout = QHBoxLayout()  # Horizontal layout for image and prediction
+        main_layout = QHBoxLayout()
 
         # Create vertical layout for original image and its label
         image_layout = QVBoxLayout()
@@ -93,8 +135,6 @@ class XrayClassifierApp(QWidget):
         button_layout_load.addWidget(self.load_button)
 
         image_layout.addLayout(button_layout_load)
-
-        # Add the image layout to the main layout
         main_layout.addLayout(image_layout)
 
         # Create vertical layout for predictions and buttons
@@ -102,8 +142,10 @@ class XrayClassifierApp(QWidget):
 
         # Create label for results
         self.results_label = QLabel("")
-        self.results_label.setAlignment(Qt.AlignCenter)
-        self.results_label.setStyleSheet("background-color: #333333; border: 1px solid #444444; padding: 10px; border-radius: 10px; color: white;")
+        self.results_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)  # Changed alignment for better readability
+        self.results_label.setMinimumSize(600, 500)  # Larger area for multi-label results
+        self.results_label.setStyleSheet("background-color: #333333; border: 1px solid #444444; padding: 15px; border-radius: 10px; color: white;")
+        self.results_label.setWordWrap(True)  # Enable word wrapping
         prediction_layout.addWidget(self.results_label)
 
         # Create button layout
@@ -116,8 +158,6 @@ class XrayClassifierApp(QWidget):
         button_layout.addWidget(self.classify_button)
 
         prediction_layout.addLayout(button_layout)
-
-        # Add the prediction layout to the main layout
         main_layout.addLayout(prediction_layout)
 
         # Set the layout for the main window
@@ -137,52 +177,111 @@ class XrayClassifierApp(QWidget):
             
             # Clear previous results
             self.results_label.setText("")
+            self.heatmap_label.setText("Heatmap will be displayed here")
             
     def classify_image(self):
-        if hasattr(self, 'image_path'):
-            model_img = preprocess_image(self.image_path)
-            predictions = model.predict(model_img)[0]
-            
-            # Get the top prediction
-            top_index = np.argmax(predictions)
-            top_class = class_names[top_index]
-            top_confidence = predictions[top_index] * 100
-            
-            # Display the top prediction with stylized text
-            result_text = f"<h1 style='color: #00ff00; margin=0; font-size: 48px;'>Top Prediction:</h1>"
-            result_text += f"<h1 style='color: #ffcc00; margin=0; font-size: 84px;'>{top_class}</h1>"
-            result_text += f"<h2 style='color: #00ff00; margin=0; font-size: 36px;'>Confidence: {top_confidence:.2f}%</h2>"
+        if not hasattr(self, 'image_path'):
+            self.results_label.setText("<h2 style='color: #ff0000;'>No image selected</h2>")
+            return
 
-            # Display detailed probabilities for all classes
-            result_text += "<h2 style='color: #00ff00; font-size: 22px;'>Detailed Probabilities:</h2>"
-            for i, cls in enumerate(class_names):
-                prob = predictions[i] * 100
-                result_text += f"<p style='margin: 0; color: #ffffff; font-size: 14px;'>{cls}: {prob:.2f}%</p>"
+        try:
+            # Preprocess image and get predictions
+            model_img = preprocess_image(self.image_path)
+            predictions = model.predict(model_img, verbose=0)[0]
+            
+            # Apply optimized thresholds
+            detected_diseases, all_results = predict_with_thresholds(predictions, optimal_thresholds, class_names)
+            
+            # Build result text
+            result_text = "<h1 style='color: #00ff00; font-size: 28px; margin-bottom: 15px;'>MULTI-LABEL DIAGNOSIS</h1>"
+            
+            if detected_diseases:
+                result_text += "<h2 style='color: #ffcc00; font-size: 22px; margin-bottom: 10px;'>DETECTED ABNORMALITIES:</h2>"
+                for disease in detected_diseases:
+                    confidence = disease['probability'] * 100
+                    threshold_pct = disease['threshold'] * 100
+                    result_text += f"<p style='margin: 5px 0; color: #ff6666; font-size: 16px; font-weight: bold;'>"
+                    result_text += f"• {disease['class']}: {confidence:.1f}% (thresh: {threshold_pct:.0f}%)</p>"
+                
+                # Generate heatmap for the highest confidence detected disease
+                highest_confidence_disease = max(detected_diseases, key=lambda x: x['probability'])
+                disease_index = class_names.index(highest_confidence_disease['class'])
+                
+                try:
+                    print(f"Generating heatmap for {highest_confidence_disease['class']} (index {disease_index})")
+                    heatmap = generate_gradcam_multilabel(model, model_img, disease_index)
+                    self.display_heatmap(heatmap, highest_confidence_disease['class'])
+                except Exception as e:
+                    print(f"Error generating heatmap: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    self.heatmap_label.setText(f"Heatmap generation failed: {str(e)}")
+                    
+            else:
+                result_text += "<h2 style='color: #00ff00; font-size: 20px;'>NO SIGNIFICANT ABNORMALITIES DETECTED</h2>"
+                result_text += "<p style='color: #cccccc; font-size: 14px;'>All disease probabilities are below their optimized thresholds.</p>"
+                self.heatmap_label.setText("No abnormalities detected - no heatmap generated")
+
+            # Show detailed probabilities
+            result_text += "<br><h3 style='color: #00ff00; font-size: 18px; margin-top: 20px;'>DETAILED ANALYSIS:</h3>"
+            
+            # Sort by probability for better readability
+            sorted_results = sorted(all_results, key=lambda x: x['probability'], reverse=True)
+            
+            for result in sorted_results:
+                prob_pct = result['probability'] * 100
+                thresh_pct = result['threshold'] * 100
+                status = "DETECTED" if result['detected'] else "Not detected"
+                color = "#ff6666" if result['detected'] else "#cccccc"
+                
+                result_text += f"<p style='margin: 2px 0; color: {color}; font-size: 13px;'>"
+                result_text += f"{result['class']:<20}: {prob_pct:5.1f}% | {status} (thresh: {thresh_pct:.0f}%)</p>"
 
             self.results_label.setText(result_text)
-            self.results_label.adjustSize()
+            
+        except Exception as e:
+            error_msg = f"<h2 style='color: #ff0000;'>Error during classification:</h2><p style='color: #ffcccc;'>{str(e)}</p>"
+            self.results_label.setText(error_msg)
 
-            # Generate Grad-CAM heatmap
-            heatmap = generate_gradcam(model, model_img)
-            heatmap = cv2.resize(heatmap, (400, 400))  # Resize to match QLabel size
-            heatmap = np.uint8(255 * heatmap)  # Scale to 0-255
-            heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)  # Apply color map
+    def display_heatmap(self, heatmap, disease_name):
+        """Display the Grad-CAM heatmap overlaid on the original image - with data type fixes"""
+        try:
+            print(f"Heatmap dtype: {heatmap.dtype}, shape: {heatmap.shape}")
+            
+            # Convert to float32 if needed and ensure it's contiguous
+            if heatmap.dtype != np.float32:
+                heatmap = heatmap.astype(np.float32)
+            
+            # Ensure array is contiguous
+            heatmap = np.ascontiguousarray(heatmap)
+            
+            # Resize heatmap - try with explicit dtype
+            heatmap_resized = cv2.resize(heatmap.astype(np.float32), (400, 400))
+            
+            # Scale to 0-255 and convert to uint8
+            heatmap_uint8 = np.uint8(255 * np.clip(heatmap_resized, 0, 1))
+            
+            # Apply color map
+            heatmap_colored = cv2.applyColorMap(heatmap_uint8, cv2.COLORMAP_JET)
 
-            # Overlay heatmap on the original image
+            # Load and resize original image
             orig_img = cv2.imread(self.image_path)
             orig_img = cv2.resize(orig_img, (400, 400))
-            overlay = cv2.addWeighted(orig_img, 0.6, heatmap, 0.4, 0)
+            overlay = cv2.addWeighted(orig_img, 0.6, heatmap_colored, 0.4, 0)
 
-            # Convert to QPixmap and display in heatmap_label
-            overlay = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
-            qimage = QImage(overlay.data, overlay.shape[1], overlay.shape[0], QImage.Format_RGB888)
+            # Convert to RGB for Qt display
+            overlay_rgb = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
+            qimage = QImage(overlay_rgb.data, overlay_rgb.shape[1], overlay_rgb.shape[0], QImage.Format_RGB888)
             pixmap = QPixmap.fromImage(qimage)
             self.heatmap_label.setPixmap(pixmap)
-        else:
-            self.results_label.setText("<h2 style='color: #ff0000;'>No image selected</h2>")
-            self.results_label.adjustSize()
-
-
+            
+            self.heatmap_label.setToolTip(f"Heatmap for: {disease_name}")
+            
+        except Exception as e:
+            print(f"Error in display_heatmap: {e}")
+            import traceback
+            traceback.print_exc()
+            self.heatmap_label.setText(f"Heatmap display failed: {str(e)}")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

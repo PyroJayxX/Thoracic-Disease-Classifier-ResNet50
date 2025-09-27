@@ -227,7 +227,7 @@ except Exception as e:
 class_names = [
     "Atelectasis", "Cardiomegaly", "Consolidation", "Edema", "Effusion",
     "Emphysema", "Fibrosis", "Hernia", "Infiltration", "Mass",
-    "Nodule", "No_Finding", "Pleural_Thickening", "Pneumonia", "Pneumothorax"
+    "Nodule", "No Finding", "Pleural_Thickening", "Pneumonia", "Pneumothorax"
 ]
 
 # =============================================================================
