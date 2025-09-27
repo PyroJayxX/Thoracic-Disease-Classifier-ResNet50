@@ -6,3 +6,4 @@ dataset_balanced/
 *.keras
 build/
 dist/
+dataset_unbalanced/
