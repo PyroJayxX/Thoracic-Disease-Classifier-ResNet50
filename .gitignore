@@ -2,6 +2,7 @@
 cache/
 dataset/
 dataset_balanced/
+dataset_unbalanced/
 *.h5
 *.keras
 build/
