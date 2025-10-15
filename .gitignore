@@ -1,6 +1,7 @@
 .venv/
 cache/
 dataset/
+dataset_pneumothorax/
 dataset_balanced/
 dataset_unbalanced/
 *.h5
