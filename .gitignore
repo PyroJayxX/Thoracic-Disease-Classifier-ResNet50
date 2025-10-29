@@ -4,6 +4,7 @@ dataset/
 dataset_pneumothorax/
 dataset_balanced/
 dataset_unbalanced/
+balanced_dataset/
 *.h5
 *.keras
 build/
