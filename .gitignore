@@ -2,6 +2,11 @@
 cache/
 dataset/
 dataset_unbalanced/
+dataset_balanced/
+dataset_pneumothorax/
+dataset_pneumothorax_small/
+dataset_resized/
+combined_dataset/
 *.h5
 *.keras
 build/
