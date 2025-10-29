@@ -1,4 +1,5 @@
 .venv/
+.torch/
 cache/
 dataset/
 dataset_unbalanced/
