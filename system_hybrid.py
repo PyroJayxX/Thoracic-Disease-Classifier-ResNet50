@@ -5,16 +5,26 @@ from PyQt5.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget, QPushBut
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap, QImage, QFont
 from keras.models import load_model
-from keras.losses import Loss
-from tensorflow_addons.losses import SigmoidFocalCrossEntropy
+from keras.losses import Loss  
 from PyQt5.QtWidgets import QFrame
+import os
 import tensorflow as tf
 
-custom_objects = {'loss': Loss, 'Addons>SigmoidFocalCrossEntropy': SigmoidFocalCrossEntropy()}
-model = load_model('./output/thoracic_classifierV9.keras', custom_objects=custom_objects)
+
+custom_objects = {'loss': Loss}  
+
+# def resource_path(relative_path):
+#     if hasattr(sys, '_MEIPASS'):
+#         return os.path.join(sys._MEIPASS, relative_path)
+#     return os.path.join(os.path.abspath("."), relative_path)
+
+# model_path = resource_path("thoracic_classifierV8.keras")
+# model = load_model(model_path, custom_objects={'loss': Loss})
+
+model = load_model("./output/thoracic_classifierV8.keras", custom_objects=custom_objects)
 
 class_names = ["Atelectasis", "Cardiomegaly", "Consolidation", "Edema", "Effusion",
-    "Emphysema", "Fibrosis", "Hernia", "Infiltration", "Mass",
+    "Emphysema", "Fibrosis", "Hernia", "Infiltration", "Mass", "No Finding", 
     "Nodule", "Pleural_Thickening", "Pneumonia", "Pneumothorax"]
 
 
@@ -33,6 +43,8 @@ def preprocess_image(image_path):
     model_img = np.repeat(model_img, 3, axis=-1)         # (1, 224, 224, 3)
     
     return model_img
+
+import tensorflow as tf
 
 def generate_gradcam(model, img_array, last_conv_layer_name="conv5_block3_out", pred_index=None):
     grad_model = tf.keras.models.Model(
@@ -61,7 +73,7 @@ def generate_gradcam(model, img_array, last_conv_layer_name="conv5_block3_out", 
 class XrayClassifierApp(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("ResNet50 Thoracic Disease Classifier")
+        self.setWindowTitle("ResNet50-ViT Hybrid Thoracic Disease Classifier")
         self.setGeometry(200, 200, 900, 600)  # Adjusted height for heatmap display
 
         # Create main layout
@@ -181,7 +193,6 @@ class XrayClassifierApp(QWidget):
         else:
             self.results_label.setText("<h2 style='color: #ff0000;'>No image selected</h2>")
             self.results_label.adjustSize()
-
 
 
 if __name__ == "__main__":

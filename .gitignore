@@ -7,3 +7,9 @@ dataset_balanced/
 build/
 dist/
 dataset_unbalanced/
+dataset_resized/
+dataset_pneumothorax/
+checkpoints/
+dataset_pneumothorax_small/
+combined_dataset/
+Final Model/
