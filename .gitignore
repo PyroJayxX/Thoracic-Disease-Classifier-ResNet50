@@ -1,7 +1,9 @@
 .venv/
+.torch/
 cache/
 dataset/
 dataset_balanced/
+dataset_5nodes/
 *.h5
 *.keras
 build/
