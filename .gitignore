@@ -18,3 +18,4 @@ Final Model/
 dataset_nodule/
 dataset_nodule_augmented/
 dataset_nodule21/
+*.pth
